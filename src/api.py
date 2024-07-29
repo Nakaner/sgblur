@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, Response
+from fastapi import FastAPI, UploadFile, Response, HTTPException
 import gc
 from . import blur_monolith as blur
 import json
