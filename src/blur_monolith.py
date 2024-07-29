@@ -1,5 +1,6 @@
 import os, subprocess
 
+from enum import Enum
 from ultralytics import YOLO
 import turbojpeg
 from PIL import Image, ImageFilter, ImageOps
@@ -10,9 +11,11 @@ import torch
 
 jpeg = turbojpeg.TurboJPEG()
 model = YOLO("./models/yolov8s_panoramax.pt")
-model.names[0] = 'sign'
-model.names[1] = 'plate'
-model.names[2] = 'face'
+
+class Classes(Enum):
+    SIGN = 0
+    PLATE = 1
+    FACE = 2
 
 crop_save_dir = '/tmp/sgblur/crops'
 
@@ -104,7 +107,7 @@ def blurPicture(picture, keep):
             box_l = int(offset[r][0] + box[0][0] - box[0][2] * 0.5) >> hblock << hblock
             box_t = int(offset[r][0] + box[0][1] - box[0][3] * 0.5) >> vblock << vblock
             box_w = int(box[0][2]) + (2 << hblock) >> hblock << hblock
-            if model.names[int(obj.cls)] == 'sign':
+            if Classes(int(obj.cls)) == Classes.SIGN:
                 box_h = int(box[0][3] * 1.25 + (2 << vblock)) >> vblock << vblock
             else:
                 box_h = int(box[0][3]) + (2 << vblock) >> vblock << vblock
@@ -141,7 +144,7 @@ def blurPicture(picture, keep):
 
         # if face or plate, blur boxes and paste them onto original
         for c in range(len(crops)):
-            if info[c]['class'] == 'sign':
+            if Classes(int(info[c]['class'])) == Classes.SIGN:
                 continue
             blurred = True
             crop = open(tmpcrop,'wb')
@@ -196,16 +199,16 @@ def blurPicture(picture, keep):
         if crop_save_dir != '':
             salt = str(uuid.uuid4())
             for c in range(len(crops)):
-                if ((keep == '1' and info[c]['confidence'] < 0.5 and info[c]['class'] in ['face', 'plate'])
-                        or (info[c]['confidence'] > 0.2 and info[c]['class'] == 'sign')):
+                if ((keep == '1' and info[c]['confidence'] < 0.5 and Classes(int(info[c]['class'])) in [Classes.FACE, Classes.PLATE])
+                        or (info[c]['confidence'] > 0.2 and Classes(int(info[c]['class'])) == Classes.SIGN)):
                     h = hashlib.sha256()
-                    h.update(((salt if not info[c]['class'] == 'sign' else str(info))+str(info[c])).encode())
+                    h.update(((salt if not Classes(int(info[c]['class'])) == Classes.SIGN else str(info))+str(info[c])).encode())
                     cropname = h.hexdigest()+'.jpg'
                     dirname = crop_save_dir+'/'+info[c]['class']+'/'+cropname[0:2]+'/'+cropname[0:4]+'/'
                     pathlib.Path(dirname).mkdir(parents=True, exist_ok=True)
                     with open(dirname+cropname, 'wb') as crop:
                         crop.write(crops[c])
-                    if info[c]['class'] == 'sign':
+                    if Classes(int(info[c]['class'])) == Classes.SIGN:
                         print('copy EXIF')
                         subprocess.run('exiftool -overwrite_original -tagsfromfile %s %s' % (tmp, dirname+cropname), shell=True)
                     else:
