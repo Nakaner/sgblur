@@ -52,13 +52,11 @@ def blurPicture(picture, keep):
         jpg.write(picture.file.read())
         jpg.seek(0)
         tags = exifread.process_file(jpg, details=False)
-    print("original", os.path.getsize(tmp))
 
     # solve image orientation
     if 'Image Orientation' in tags:
         if 'normal' not in str(tags['Image Orientation']):
             subprocess.run('exiftran -a %s -o %s' % (tmp, tmp+'_tmp'), shell=True)
-            print("after exiftran", os.path.getsize(tmp+'_tmp'))
             os.replace(tmp+'_tmp', tmp)
 
     # get picture details
@@ -99,7 +97,6 @@ def blurPicture(picture, keep):
     hblock, vblock, sample = [(3, 3 ,'1x1'), (4, 3, '2x1'), (4, 4, '2x2'), (4, 4, '2x2'), (3, 4, '1x2')][jpeg_subsample]
 
     blurred = False
-    print("hblock, vbloxk, sample :",hblock, vblock, sample)
     for r in range(len(result)):
         for b in range(len(result[r].boxes)):
             obj = result[r].boxes[b]
@@ -127,8 +124,6 @@ def blurPicture(picture, keep):
             if crop:
                 crop_rects.append(crop)
 
-            print(box)
-            print(crop_rects[-1])
             # collect info about blurred object to return to client
             info.append({
                 "class": model.names[int(obj.cls)],
@@ -136,7 +131,6 @@ def blurPicture(picture, keep):
                 "xywh": crop_rects[-1]
             })
 
-    print(json.dumps(info))
     if len(crop_rects)>0:
 #        # Load image
 #        img = Image.open(picture.file, 'JPEG')
@@ -162,26 +156,20 @@ def blurPicture(picture, keep):
             os.replace(tmpcrop+'_tmp', tmpcrop)
 
             # jpegtran "drop"
-            print( 'crop size', os.path.getsize(tmpcrop))
             p = subprocess.run('jpegtran -progressive -optimize -copy all -trim -drop +%s+%s %s %s > %s' % (crop_rects[c][0], crop_rects[c][1], tmpcrop, tmp, tmp+'_tmp'), shell=True)
-            print( 'after drop', os.path.getsize(tmp+'_tmp'))
             if p.returncode != 0 :
-                print('crop %sx%s -> recrop %sx%s' % (img.width, img.height, crop_rects[c][2], crop_rects[c][3]))
                 subprocess.run('jpegtran -crop %sx%s+0+0 %s > %s' % (img.width, img.height, tmpcrop, tmpcrop+'_tmp'), shell=True)
                 p = subprocess.run('jpegtran -progressive -optimize -copy all -trim -drop +%s+%s %s %s > %s' % (crop_rects[c][0], crop_rects[c][1], tmpcrop+'_tmp', tmp, tmp+'_tmp'), shell=True)
                 if img.height != crop_rects[c][3]:
                     input()
 
             if p.returncode != 0 :
-                print('>>>>>> crop info: ',info[c])
                 input()
                 # problem with original JPEG... we try to recompress it
                 subprocess.run('djpeg %s | cjpeg -optimize -smooth 10 -dct float -baseline -outfile %s' % (tmp, tmp+'_tmp'), shell=True)
                 # copy EXIF tags
                 subprocess.run('exiftool -overwrite_original -tagsfromfile %s %s' % (tmp, tmp+'_tmp'), shell=True)
-                print('after recompressing original', os.path.getsize(tmp+'_tmp'))
                 os.replace(tmp+'_tmp', tmp)
-                print('jpegtran -progressive -optimize -copy all -trim -drop +%s+%s %s %s > %s' % (crop_rects[c][0], crop_rects[c][1], tmpcrop, tmp, tmp+'_tmp'))
                 subprocess.run('jpegtran -progressive -optimize -copy all -trim -drop +%s+%s %s %s > %s' % (crop_rects[c][0], crop_rects[c][1], tmpcrop, tmp, tmp+'_tmp'), shell=True)
             os.replace(tmp+'_tmp', tmp)
 
@@ -208,7 +196,6 @@ def blurPicture(picture, keep):
                     with open(dirname+cropname, 'wb') as crop:
                         crop.write(crops[c])
                     if Classes(int(info[c]['class'])) == Classes.SIGN:
-                        print('copy EXIF')
                         subprocess.run('exiftool -overwrite_original -tagsfromfile %s %s' % (tmp, dirname+cropname), shell=True)
                     else:
                         # round ctime/mtime to midnight
@@ -221,7 +208,6 @@ def blurPicture(picture, keep):
             before_thumb = os.path.getsize(tmp)
             subprocess.run('exiftran -g -o %s %s' % (tmp+'_tmp', tmp), shell=True)
             os.replace(tmp+'_tmp', tmp)
-            print("after thumbnail", os.path.getsize(tmp), (100*(os.path.getsize(tmp)-before_thumb)/before_thumb))
 
     # return result (original image if no blur needed)
     with open(tmp, 'rb') as jpg:
@@ -287,7 +273,6 @@ def deblurPicture(picture, idx, salt):
         
         os.remove(tmp)
 
-        print('deblur: ',i[idx], cropname)
         return deblurred
     except:
         return None
