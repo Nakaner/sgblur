@@ -3,7 +3,7 @@ import os, subprocess
 from enum import Enum
 from ultralytics import YOLO
 import turbojpeg
-from PIL import Image, ImageFilter, ImageOps
+from PIL import Image
 import hashlib, pathlib, time
 import exifread
 import json, uuid
@@ -138,6 +138,9 @@ def blurPicture(picture, keep):
 
     print(json.dumps(info))
     if len(crop_rects)>0:
+#        # Load image
+#        img = Image.open(picture.file, 'JPEG')
+
         # extract cropped jpeg data from boxes to be blurred
         with open(tmp, 'rb') as jpg:
             crops = jpeg.crop_multiple(jpg.read(), crop_rects, background_luminance=0, copynone=True)
@@ -147,18 +150,14 @@ def blurPicture(picture, keep):
             if Classes(int(info[c]['class'])) == Classes.SIGN:
                 continue
             blurred = True
+
             crop = open(tmpcrop,'wb')
             crop.write(crops[c])
             crop.close()
             # pillow based blurring
             img = Image.open(tmpcrop)
-            radius = max(int(max(img.width, img.height)/12) >> 3 << 3, 8)
-            # pixelate first
-            reduced = ImageOps.scale(img, 1/radius, resample=0)
-            pixelated = ImageOps.scale(reduced, radius, resample=0)
-            # and blur
-            boxblur = pixelated.filter(ImageFilter.BoxBlur(radius))
-            boxblur.save(tmpcrop, subsampling=jpeg_subsample)
+            img = img.point(lambda i: 0)
+            img.save(tmpcrop, subsampling=jpeg_subsample)
             subprocess.run('djpeg %s | cjpeg -sample %s -optimize -dct float -baseline -outfile %s' % (tmpcrop, sample, tmpcrop+'_tmp'), shell=True)
             os.replace(tmpcrop+'_tmp', tmpcrop)
 
